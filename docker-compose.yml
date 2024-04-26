@@ -1,0 +1,181 @@
+version: '1'
+networks: # Define a network for the data pipeline
+  datapipeline-net:
+    driver: bridge
+services:
+  logstash-producer:  # Define logstash-producer service
+    container_name: logstash-producer
+    build: 
+      context: ./logstash
+    volumes:
+      - "./logstash/conf.d/logstash-producer.conf:/config-dir/logstash-producer.conf"
+      - "./dataset/nginx_json_logs:/dataset/nginx_json_logs"
+    restart: always
+    command: logstash -f /config-dir/logstash-producer.conf
+    ports:
+      - "9801:9600"
+    networks:
+      - datapipeline-net
+    healthcheck:
+      test: bin/logstash -t
+      interval: 60s
+      timeout: 50s
+      retries: 5
+    depends_on:
+      kafka:
+        condition: service_started            
+  zookeeper:  # Define zoopkeeper service for kafka message queue 
+    container_name: zookeeper
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+    networks:
+      - datapipeline-net
+    healthcheck:
+      test: nc -z localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  kafka:  # Define kafka broker service
+    container_name: kafka
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - 9092:9092
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - datapipeline-net
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      start_period: 15s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+  kafka-init:   # Define kafka raw topic
+    container_name: kafka-init
+    image: docker.io/bitnami/kafka:latest
+    networks:
+      - datapipeline-net
+    command: [ "/bin/bash", "-c", "/create_topic.sh"]
+    environment:
+      - TEST_TOPIC_NAME=datapipeline-dataset
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./kafka/create_topic.sh
+        target: /create_topic.sh
+    init: true
+  logstash-consumer:  # Define logstash-consumer service
+    container_name: logstash-consumer
+    build: 
+      context: ./logstash
+    volumes:
+      - "./logstash/conf.d/logstash-consumer.conf:/config-dir/logstash-consumer.conf"
+    restart: always
+    command: logstash -f /config-dir/logstash-consumer.conf
+    ports:
+      - "9800:9600"
+    networks:
+      - datapipeline-net 
+    environment:
+      - opensearch_user=${opensearch_user} #OpenSearch user name
+      - opensearch_pwd=${opensearch_pwd}
+    healthcheck:
+      test: bin/logstash -t
+      interval: 60s
+      timeout: 50s
+      retries: 5
+    depends_on:
+      kafka-init:
+        condition: service_started 
+  opensearch-node1:  # Define opensearch-node1 service
+    image: opensearchproject/opensearch:latest 
+    container_name: opensearch-node1
+    environment:
+      - cluster.name=opensearch-cluster # Name the cluster
+      - node.name=opensearch-node1 # Name the node that will run in this container
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2 # Nodes to look for when discovering the cluster
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2 # Nodes eligible to serve as cluster manager
+      - bootstrap.memory_lock=true # Disable JVM heap memory swapping
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" # Set min and max JVM heap sizes to at least 50% of system RAM
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${opensearch_pwd}    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and later
+    ulimits:
+      memlock:
+        soft: -1 # Set memlock to unlimited (no soft or hard limit)
+        hard: -1
+      nofile:
+        soft: 65536 # Maximum number of open files for the opensearch user - set to at least 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data # Creates volume called opensearch-data1 and mounts it to the container
+    ports:
+      - 9200:9200 # REST API
+      - 9600:9600 # Performance Analyzer
+    networks:
+      - datapipeline-net # All of the containers will join the same Docker bridge network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -u $opensearch_user:$opensearch_pwd --silent --fail https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+  opensearch-node2:  # Define opensearch-node2 service
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node2
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node2
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${opensearch_pwd}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data2:/usr/share/opensearch/data
+    networks:
+      - datapipeline-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -u $opensearch_user:$opensearch_pwd --silent --fail https://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+  opensearch-dashboards:  # Define opensearch-dashboards service
+    image: opensearchproject/opensearch-dashboards:latest # Make sure the version of opensearch-dashboards matches the version of opensearch installed on other nodes
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601 # Map host port 5601 to container port 5601
+    expose:
+      - "5601" # Expose port 5601 for web access to OpenSearch Dashboards
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch-node1:9200","https://opensearch-node2:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
+    networks:
+      - datapipeline-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -u $opensearch_user:$opensearch_pwd --silent --fail http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+volumes: # Define volumes for OpenSearch nodes
+  opensearch-data1:
+  opensearch-data2:   
