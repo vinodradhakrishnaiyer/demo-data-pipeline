@@ -4,7 +4,7 @@ Table of Contents
 -----------------
 
 -	[Introduction](#introduction)
--	[Architecture Diagram](#architecture)
+-	[Architecture Diagram](#architecture-diagram)
 -	[Installation](#installation)
     -   [Pre-requisites](#pre-requisites)
     -   [Quick Start Guide](#quick-start-guide)
@@ -55,6 +55,8 @@ Finally, an [NGINX Log Analysis Dashboard](https://github.com/vinodradhakrishnai
 Architecture Diagram
 ---------------------
 Below is the Architecture Diagram for the data pipeline.
+
+![Architecture Diagram](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/Architecture%20Diagram.png)
 
 Installation
 -------------
@@ -151,13 +153,13 @@ OpenSearch Dashboards
 ----------------------
 An [NGINX Log Analysis Dashboard](http://localhost:5601/app/dashboards#/view/b39103e0-004a-11ef-b521-258cc7591416) provides insight in to the dataset through 10 different visualizations of various types. These can be seen in the following screenshots. 
 
-[NGINX Log Analysis Dashboard - Page1](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/)
+![NGINX Log Analysis Dashboard - Page1](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/NGINX%20Log%20Analysis%20-%20Page%201.png)
 
-[NGINX Log Analysis Dashboard - Page2](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/)
+![NGINX Log Analysis Dashboard - Page2](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/NGINX%20Log%20Analysis%20-%20Page%202.png)
 
-[NGINX Log Analysis Dashboard - Page3](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/)
+![NGINX Log Analysis Dashboard - Page3](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/opensearch-dashboards/NGINX%20Log%20Analysis%20-%20Page%203.png)
 
-More details about each visualization can be found in the [Technical Design Document](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/technical-design-document.pdf)
+More details about each visualization can be found in the [Design Document](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/Design%20Document.pdf)
 
 Once the data pipeline is started using the helper script, OpenSearch Dashboards can be accessed at [this](http://localhost:5601) url. The username for login is ***admin*** and the password is the one set using the helper script while starting the data pipeline.
 
@@ -168,4 +170,4 @@ The dashboard should be accessible at *[this](http://localhost:5601/app/dashboar
 
 Design Document
 --------------------------
-For more details from the details of Demo Data Pipeline design, please read the ***[Technical Design Document](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/technical-design-document.pdf)***
+For more details about the Demo Data Pipeline design, please read the ***[Design Document](https://github.com/vinodradhakrishnaiyer/demo-data-pipeline/blob/main/Design%20Document.pdf)***
